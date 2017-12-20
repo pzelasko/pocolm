@@ -11,6 +11,8 @@ import shutil
 import tempfile
 import threading
 
+from pocolm_common import EnvironmentContext
+
 parser = argparse.ArgumentParser(description="This script evaluates the probability of some "
                                  "data (in text or gzipped-text format), given a language model "
                                  "in a pocolm 'lm-dir' (as validated by validate_lm_dir.py). "
@@ -32,9 +34,6 @@ args = parser.parse_args()
 os.environ['PATH'] = (os.environ['PATH'] + os.pathsep +
                       os.path.abspath(os.path.dirname(sys.argv[0])) + os.pathsep +
                       os.path.abspath(os.path.dirname(sys.argv[0])) + "/../src")
-# this will affect the program "sort" that we call.
-os.environ['LC_ALL'] = 'C'
-
 
 if os.system("validate_lm_dir.py " + args.lm_dir_in) != 0:
     sys.exit("get_data_prob.py: failed to validate input LM-dir")
@@ -90,9 +89,6 @@ def RunCommand(command):
 
 work_dir = tempfile.mkdtemp(dir=args.lm_dir_in)
 
-# this temporary directory will be used by "sort".
-os.environ['TMPDIR'] = work_dir
-
 ngram_order = GetNgramOrder(args.lm_dir_in)
 
 # set the memory restriction for "sort"
@@ -115,7 +111,9 @@ else:
     command += "/dev/stdout | split-int-counts " + ' '.join([work_dir + "/int.dev." + str(n)
                                                             for n in range(1, num_splits + 1)])
 
-RunCommand(command)
+# These variables will affect the program "sort" that we call.
+with EnvironmentContext(LC_ALL='C', TMPDIR=work_dir):
+    RunCommand(command)
 
 tot_num_words = 0.0
 tot_logprob = 0.0

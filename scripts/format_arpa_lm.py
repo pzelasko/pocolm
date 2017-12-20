@@ -13,6 +13,8 @@ sys.path = [os.path.abspath(os.path.dirname(sys.argv[0])) + "/internal"] + sys.p
 
 # for ExitProgram
 from pocolm_common import ExitProgram
+from pocolm_common import DivideMemory
+from pocolm_common import EnvironmentContext
 
 parser = argparse.ArgumentParser(description="This script turns a pocolm language model "
                                  "directory as created by make_lm_dir.py, into an ARPA-format "
@@ -38,11 +40,6 @@ if args.temp_dir is None:
 os.environ['PATH'] = (os.environ['PATH'] + os.pathsep +
                       os.path.abspath(os.path.dirname(sys.argv[0])) + os.pathsep +
                       os.path.abspath(os.path.dirname(sys.argv[0])) + "/../src")
-# this will affect the program "sort" that we call.
-os.environ['LC_ALL'] = 'C'
-
-# this temporary directory will be used by "sort".
-os.environ['TMPDIR'] = args.temp_dir
 
 if os.system("validate_lm_dir.py " + args.lm_dir) != 0:
     sys.exit("format_arpa_lm.py: failed to validate input LM directory")
@@ -76,42 +73,6 @@ if args.max_memory != '':
         sys.exit("format_arpa_lm.py: the lenght of string --max-memory must >= 2.")
     if args.max_memory[-1] == 'B':  # sort seems not recognize 'B'
         args.max_memory[-1] = 'b'
-
-# this function returns the value and unit of the max_memory
-# if max_memory is in format of "integer + letter/%", like  "10G", it returns (10, 'G')
-# if max_memory contains no letter, like "10000", it returns (10000, '')
-# we assume the input string is not empty since when it is empty we never call this function
-
-
-def ParseMemoryString(s):
-    if not s[-1].isdigit():
-        return (int(s[:-1]), s[-1])
-    else:
-        return (int(s), '')
-
-
-def DivideMemory(total, n):
-    (value, unit) = ParseMemoryString(total)
-    sub_memory = value / n
-    if sub_memory != float(value) / n:
-        if unit in ['K', 'k', '']:
-            sub_memory = value * 1024 / n
-            unit = 'b'
-        elif unit in ['M', 'm']:
-            sub_memory = value * 1024 / n
-            unit = 'K'
-        elif unit in ['G', 'g']:
-            sub_memory = value * 1024 / n
-            unit = 'M'
-        elif (unit in ['B', 'b', '%']) and (sub_memory == 0):
-            ExitProgram("max_memory for each of the {0} train sets is {1}{2}."
-                        "Please reset a larger max_memory value".format(
-                            n, float(value)/n, unit))
-        else:
-            ExitProgram("Invalid format for max_memory. "
-                        "Please 'man sort' to see how to set buffer size.")
-    return str(int(sub_memory)) + unit
-
 
 # read ngram order.
 f = open(args.lm_dir + "/ngram_order")
@@ -162,7 +123,9 @@ else:
 
 print("format_arpa_lm.py: running " + command, file=sys.stderr)
 
-ret = os.system(command)
+# These variables will affect the program "sort" that we call.
+with EnvironmentContext(LC_ALL='C', TMPDIR=args.temp_dir):
+    ret = os.system(command)
 
 if ret != 0:
     sys.exit("format_arpa_lm.py: command {0} exited with status {1}".format(

@@ -18,6 +18,7 @@ sys.path = [os.path.abspath(os.path.dirname(sys.argv[0])) + "/internal"] + sys.p
 # for ExitProgram and RunCommand
 from pocolm_common import ExitProgram
 from pocolm_common import RunCommand
+from pocolm_common import DivideMemory
 
 
 parser = argparse.ArgumentParser(description="Usage: "
@@ -442,40 +443,6 @@ def MergeDevData(dest_count_dir, ngram_order):
                ">{0}/int.dev".format(dest_count_dir))
     log_file = dest_count_dir + '/log/merge_dev_counts.log'
     RunCommand(command, log_file, args.verbose == 'true')
-
-
-# this function returns the value and unit of the max_memory
-# if max_memory is in format of "integer + letter/%", like  "10G", it returns (10, 'G')
-# if max_memory contains no letter, like "10000", it returns (10000, '')
-# we assume the input string is not empty since when it is empty we never call this function
-def ParseMemoryString(s):
-    if not s[-1].isdigit():
-        return (int(s[:-1]), s[-1])
-    else:
-        return (int(s), '')
-
-
-def DivideMemory(total, n):
-    (value, unit) = ParseMemoryString(total)
-    sub_memory = value // n
-    if sub_memory != float(value) / n:
-        if unit in ['K', 'k', '']:
-            sub_memory = value * 1024 / n
-            unit = 'b'
-        elif unit in ['M', 'm']:
-            sub_memory = value * 1024 / n
-            unit = 'K'
-        elif unit in ['G', 'g']:
-            sub_memory = value * 1024 / n
-            unit = 'M'
-        elif (unit in ['B', 'b', '%']) and (sub_memory == 0):
-            ExitProgram("max_memory for each of the {0} train sets is {1}{2}."
-                        "Please reset a larger max_memory value".format(
-                            n, float(value)/n, unit))
-        else:
-            ExitProgram("Invalid format for max_memory. "
-                        "Please 'man sort' to see how to set buffer size.")
-    return str(int(sub_memory)) + unit
 
 
 # make sure 'scripts' and 'src' directory are on the path
